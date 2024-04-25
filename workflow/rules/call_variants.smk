@@ -47,9 +47,6 @@ rule call_per_sample_vcf:
             -O {output.vcf}
         '''
 
-# HaplotypeCaller outputs an intermediate file, not a VCF directly (change from gvcf or whatever file it gets outputted as)
-# - "Note that running HaplotypeCaller in GVCF mode generates intermediate GVCF files, which need to be combined using the GenomicsDBImport tool or CombineGVCFs tool before further analysis."
-
 # Get the VCFs for a given individual
 def getRunIDs(dataset, population):
     '''
@@ -73,7 +70,6 @@ rule make_sample_map:
             for runID in runIDs:
                 f.write(f"{runID}\tresults/{dataset}/{population}/variants/{runID}.g.vcf.gz\n")
 
-### NEED TO FIGURE OUT A WAY TO CLEAR THIS DIRECTORY EACH TIME
 # Consolidate GVCFs
 rule consolidate:
     message: "### Consolidating GVCFs ###"
@@ -112,8 +108,6 @@ rule joint_call:
             -O {output.vcf}
         '''
 
-# Snpeff
-
 # Filter Variants by Variant (Quality Score) Recalibration
 rule filter_variants:
     message: "### Filtering variants by Variant Recalibration ###"
@@ -121,8 +115,7 @@ rule filter_variants:
         vcf = "results/{dataset}/{population}/joint_call/{population}.vcf.gz"
     output:
         recal = "results/{dataset}/{population}/VSQR/{population}.recal",
-        tranches = "results/{dataset}/{population}/VSQR/{population}.tranches"#,
-        # plots = "results/{dataset}/{population}/VSQR/{population}.plots.R"
+        tranches = "results/{dataset}/{population}/VSQR/{population}.tranches"
     params:
         ref = config["ref"],
         known_sites = config["known_sites"],
@@ -145,11 +138,8 @@ rule filter_variants:
             -O {output.recal} \
             --tranches-file {output.tranches} 
         '''
-# Not sure what some of the bottom things are but basically it needs to train on tons of known data to give more nuanced filtering of variants
 
-# Whole genomes and exomes take slightly different parameters, so make sure you adapt your commands accordingly!
-# LOOK AT https://gatk.broadinstitute.org/hc/en-us/articles/5358906115227-VariantRecalibrator
-
+# Apply Variant Quality Score Recalibration
 rule ApplyVQSR:
     message: "### Applying Variant Recalibration ###"
     input: 
@@ -173,4 +163,3 @@ rule ApplyVQSR:
             -mode SNP \
             -O {output.filtered_vcf}
         '''
-# could also add       --truth-sensitivity-filter-level NUMBER \ to the above command

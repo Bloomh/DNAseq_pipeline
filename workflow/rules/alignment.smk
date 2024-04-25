@@ -7,19 +7,6 @@ Li Lab, University of Chicago
 This code significantly builds off of Chao Dai's A2I project for RNAseq data
 '''
 
-rule makefai:
-    message: '''### Indexing reference genome –– get the .fai file ###'''
-    input:
-        config['ref']
-    output:
-        config['ref'] + ".fai"
-    resources:
-        mem_mb=36000, cpu=6, partition="broadwl" # this took 65 minutes & a little under 5GB of memory (~1 SU)
-    shell:
-        '''
-        samtools faidx {input}
-        '''
-
 rule index:
     message: '''### Indexing reference genome ###'''
     input:
@@ -31,12 +18,11 @@ rule index:
         config['ref'] + ".pac",
         config['ref'] + ".sa" # indexed using bwa version 0.7.17-r1188
     resources:
-        mem_mb=36000, cpu=6, partition="broadwl" # this took 65 minutes & a little under 5GB of memory (~1 SU)
+        mem_mb=36000, cpu=6 # this took 65 minutes & a little under 5GB of memory (~1 SU)
     shell:
         '''
         bwa index {input} -p {input} 
         '''
-        # the path to the output is the same as the input (the genome.fa file)
 
 
 # Remove adapters for paired end reads
@@ -65,32 +51,6 @@ rule RemoveAdapters_paired:
             --json {output.report_json} \
             --html {output.report_html}
         '''
-    
-
-# Remove adapters for single end reads
-# rule RemoveAdapters_single:
-#     message: '''### Trim adapters ###'''
-#     input:
-#         f1 = "resources/{dataset}/{population}/fastq-dl/{runID}.fastq.gz",
-#     output:
-#         f1 = "resources/{dataset}/{population}/trimmed-fastq/{runID}_trimmed.fastq.gz",
-#         report_html = "resources/{dataset}/{population}/trimmed-fastq/{runID}.fastp_report.html",
-#         report_json = "resources/{dataset}/{population}/trimmed-fastq/{runID}.fastp_report.json"
-#     threads: 1
-#     resources: time=200, mem_mb=20000, cpu=1
-#     shell:
-#         '''
-#         fastp --in1 {input.f1} --out1 {output.f1} \
-#             --thread {threads} \
-#             --dont_overwrite \
-#             --overrepresentation_analysis \
-#             --detect_adapter_for_pe \
-#             --trim_poly_g \
-#             --disable_quality_filtering \
-#             --length_required 15 \
-#             --json {output.report_json} \
-#             --html {output.report_html}
-#         '''
 
 # BWA alignment for Paired-End Reads
 rule BWA_paired:
@@ -106,38 +66,13 @@ rule BWA_paired:
     threads: 
         6
     resources: 
-        time=2100, mem_mb=40000, cpu=10, partition="broadwl"
+        time=2100, mem_mb=40000, cpu=10
     shell: 
         '''
         bwa mem -R {params.readgroup} {input.ref} {input.f1} {input.f2} | samtools view -Sb - > {output}
         '''
 
-# BWA alignment for Single-End Reads
-rule BWA_single:
-    message: '''### Alignment using BWA on single-end reads ###'''
-    input:
-        ref = config['ref'],
-        fa = "resources/{dataset}/{population}/trimmed-fastq/{runID}_trimmed.fastq.gz",
-    output: 
-        bam = "results/{dataset}/{population}/mapped/{runID}.bam"
-    params:
-        readgroup = "\'@RG\\tID:{runID}\\tSM:{runID}\\tPL:ILLUMINA\\tLB:{runID}\\tPU:{runID}\'"
-    threads: 
-        6
-    resources: 
-        time=2100, mem_mb=36000, cpu=6, partition="broadwl"
-    shell: 
-        '''
-        bwa mem -R {params.readgroup} {input.ref} {input.fa} | samtools view -Sb - > {output}
-        '''
-
-# mem is recommended for a certain length of reads (longer) –– for older (shorter) reads, use aln ––> read carefully about the differences
-    # if < ~75, use aln
-# less the fastq file and take a count to check if it's the right length
-# make sure to understand the output format
-# using -R to add read group information
-
-# filtering out unmapped reads and enforcing MAPQ >= 20
+# filtering out unmapped reads
 rule FilterAlignment:
     message: 
         '''### Filter BAM on flag, mapq, chrom ### '''
@@ -155,7 +90,6 @@ rule FilterAlignment:
         '''
 # "-F 4" excludes unmapped reads (flag 4)
 # "-q 20" will enforce MAPQ >= 20 (can change number value)
-# https://davetang.org/wiki/tiki-index.php?page=SAMTools#Filtering_out_unmapped_reads_in_BAM_files
 
 # Sort BAM
 rule SortAlignments:
@@ -239,7 +173,7 @@ rule ApplyBQSR:
     output:
         bam = "results/{dataset}/{population}/BQSR/{runID}_recal.bam"
     params:
-        tmp = "/scratch/midway2/hmbloom/TMP" # added because gatk's tmp directory errorthreads: 1
+        tmp = config['tmp']
     resources: time=2000, mem_mb=30000, cpu=4
     shell:
         '''
@@ -250,9 +184,3 @@ rule ApplyBQSR:
             --tmp-dir {params.tmp} \
             -O {output.bam}
         '''
-
-# NOTE: WHEN DONE WITH THIS STUFF, FIND 3 SAMPLES THAT ARE NOT RELATED AND RUN THEM THROUGH THE PIPELINE 
-# -- (restrict to chromosome 22 to make faster)
-# use   samtools view    and specify a certain region (chromosome) -- select region
-# -- select all alignments from a region and output to a separate file --> working with just chr22 speeds up the process
-# BWA should take a while 
