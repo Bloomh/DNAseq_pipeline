@@ -40,7 +40,7 @@ rule pangolin:
     output:
         vcf = "results/{dataset}/{population}/pangolin/{population}.pangolin.vcf.gz"
     params:
-        db = "../../Tools/Pangolin/gencode.v38.annotation.db",
+        db = config["pangolin_db"],
         ref = config["ref"]
     shell:
         '''

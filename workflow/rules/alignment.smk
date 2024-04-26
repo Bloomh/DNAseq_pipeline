@@ -7,24 +7,6 @@ Li Lab, University of Chicago
 This code significantly builds off of Chao Dai's A2I project for RNAseq data
 '''
 
-rule index:
-    message: '''### Indexing reference genome ###'''
-    input:
-        config['ref']
-    output:
-        config['ref'] + ".amb",
-        config['ref'] + ".ann",
-        config['ref'] + ".bwt",
-        config['ref'] + ".pac",
-        config['ref'] + ".sa" # indexed using bwa version 0.7.17-r1188
-    resources:
-        mem_mb=36000, cpu=6 # this took 65 minutes & a little under 5GB of memory (~1 SU)
-    shell:
-        '''
-        bwa index {input} -p {input} 
-        '''
-
-
 # Remove adapters for paired end reads
 rule RemoveAdapters_paired:
     message: '''### Trim adapters ###'''
@@ -143,7 +125,7 @@ rule BaseRecalibrator:
     output:
         recal_file = "results/{dataset}/{population}/BQSR/{runID}_covariates.tab"
     params:
-        tmp = "/scratch/midway2/hmbloom/TMP" # added because gatk's tmp directory errorthreads: 1
+        tmp = config['tmp']
     resources: time=2000, mem_mb=30000, cpu=4
     shell:
         '''
